@@ -3,16 +3,11 @@ package sistemaDistribuido.sistema.clienteServidor.modoUsuario;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import sistemaDistribuido.sistema.clienteServidor.modoMonitor.Nucleo;
-import sistemaDistribuido.sistema.clienteServidor.modoUsuario.Proceso;
 import sistemaDistribuido.util.Escribano;
 import sistemaDistribuido.util.Pausador;
 
@@ -20,15 +15,13 @@ import sistemaDistribuido.util.Pausador;
 /**
  * @Nombre: Rodriguez Haro Ricardo
  * @seccion: D04
- * @No: Practica 1
- * Modificado para Practica 1
+ * @No: Practica 2
+ * Modificado para Practica 2
  */
 
 public class ProcesoServidor extends Proceso {
 
-    int OFFSET = 8;
-    int BYTES_IN_SHORT = 2;
-
+    int POSICION_CODOP = 8;
     /**
      *
      */
@@ -41,10 +34,12 @@ public class ProcesoServidor extends Proceso {
      *
      */
     public void run(){
+
         imprimeln("Inicio de Proceso servidor.");
         byte[] solServidor=new byte[1024];
-        byte[] respServidor; //1024
-        int origin;
+        byte[] respServidor;
+        int origen;
+
         while(continuar()){
             imprimeln("Invocando a Receive.");
             Nucleo.receive(dameID(),solServidor);
@@ -54,141 +49,142 @@ public class ProcesoServidor extends Proceso {
             respServidor = packageData(respServidor);
             Pausador.pausa(1000);  //sin esta línea es posible que Servidor solicite send antes que Cliente solicite receive
             imprimeln("Señalamiento al núcleo para envío de mensaje");
-            origin = getOrigin(solServidor);
-            System.out.println("El origen del paquete es: "+origin);
-            Nucleo.send(origin,respServidor);
+            origen = getOrigin(solServidor);
+            System.out.println("El origen del paquete es: "+origen);
+            Nucleo.send(origen,respServidor);
         }
     }
 
-    private boolean createFile(String fileName){
-        boolean success = false;
-        File newFile = new File(fileName);
-        if(!newFile.exists()){
+    private boolean crearArchivo(String nombreArchivo){
+        boolean archivoCreado = false;
+        File archivo = new File(nombreArchivo);
+        if(!archivo.exists()){
             try {
-                success = newFile.createNewFile();
+                archivoCreado = archivo.createNewFile();
             } catch (IOException e) {}
         }
-        return success;
+        return archivoCreado;
     }
 
-    private boolean deleteFile(String fileName){
-        boolean success = false;
-        File newFile = new File(fileName);
+    private boolean eliminarArchivo(String nombreArchivo){
+        boolean archivoEliminado = false;
+        File archivo = new File(nombreArchivo);
         try{
-            success = newFile.delete();
+            archivoEliminado = archivo.delete();
         } catch (SecurityException e) {}
-        return success;
+        return archivoEliminado;
     }
 
-    private boolean writeFile(String fileName, String lineToWrite){
-        boolean success = false;
-        BufferedWriter br;
-        File newFile = new File(fileName);
+    private boolean escribirArchivo(String nombreArchivo, String escribir){
+        boolean archivoEscrito = false;
+        BufferedWriter writer;
+        File archivo = new File(nombreArchivo);
         try {
-            if(newFile.exists()){
-                br = new BufferedWriter(new FileWriter(newFile));
-                br.write(lineToWrite);
-                br.close();
-                success = true;
+            if(archivo.exists()){
+                writer = new BufferedWriter(new FileWriter(archivo));
+                writer.write(escribir);
+                writer.close();
+                archivoEscrito = true;
             }
         } catch (IOException e) {}
-        return success;
+        return archivoEscrito;
     }
 
-    private String readFile(String fileName){
-        String success = "Error al leer desde archivo '"+fileName+"'";
-        BufferedReader br;
-        File newFile = new File(fileName);
+    private String leerArchivo(String nombreArchivo){
+        String archivoLeido = "Error al leer archivo: " + nombreArchivo;
+        BufferedReader reader;
+        File archivo = new File(nombreArchivo);
         try {
-            if(newFile.exists()){
-                br = new BufferedReader(new FileReader(newFile));
-                success = br.readLine();
-                br.close();
+            if(archivo.exists()){
+                reader = new BufferedReader(new FileReader(archivo));
+                archivoLeido = reader.readLine();
+                reader.close();
             }
         } catch (IOException e) {}
-        return success;
+        return archivoLeido;
     }
 
-    private String HacerOperacion(short operacion, String[] args){
+    private String ejecutarComando(short comando, String[] instrucciones){
 
-        String fileName = "default.txt",
-                toWrite = "default line";
-        String log = "";
-        int length = (args.length > 2) ? 2 : args.length;
-        switch(length){
+        String nombreArchivo = "nombre.txt";
+        String lineaEscribir = "lineaEscribir";
+        String respuesta = "";
+
+        int longitud = (instrucciones.length > 2) ? 2 : instrucciones.length;
+
+        switch(longitud)
+        {
             case 2:
-                toWrite = args[1];
+                lineaEscribir = instrucciones[1];
             case 1:
-                fileName = args[0];
+                nombreArchivo = instrucciones[0];
                 break;
             default: break;
-        }
-        switch(operacion){
+        }//fin de switch
+
+        switch(comando)
+        {
             case 0:
-                log+=(createFile(fileName)) ?  (fileName+" creado") :
-                        (fileName +" no creado");
-                imprimeln("Se solicitó servicio 'Crear' con el nombre de archivo: "+fileName);
+                respuesta += (crearArchivo(nombreArchivo)) ?  (nombreArchivo+" creado") : ("Error al crear: " + nombreArchivo);
+                imprimeln("Crear archivo: " + nombreArchivo);
                 break;
             case 1:
-                log+= (deleteFile(fileName)) ? (fileName +" eliminado") :
-                        (fileName +" no eliminado");
-                imprimeln("Se solicitó servicio 'Eliminar' con el nombre de archivo: "+fileName);
+                respuesta+= (eliminarArchivo(nombreArchivo)) ? (nombreArchivo +" eliminado") : ("Error al eliminar: " + nombreArchivo);
+                imprimeln("Eliminar archivo: "+nombreArchivo);
                 break;
             case 2:
-                log+= readFile(fileName);
-                imprimeln("Se solicitó servicio 'Leer' con el nombre de archivo: "+fileName);
+                respuesta += leerArchivo(nombreArchivo);
+                imprimeln("Leer archivo: " + nombreArchivo);
                 break;
             case 3:
-                log+= (writeFile(fileName, toWrite)) ? (fileName +" Escrito: "+toWrite) :
-                        (fileName +" Error: No se pudo escribir");
-                imprimeln("Se solicitó servicio 'Escribir' con el nombre de archivo: "+fileName+
-                        " y el texto: '"+toWrite+"'");
+                respuesta += (escribirArchivo(nombreArchivo, lineaEscribir)) ? (nombreArchivo +" Escrito: "+lineaEscribir) : ("Error al escribir: " + nombreArchivo);
+                imprimeln("Escribir en archivo: " + nombreArchivo + " Linea: "+ lineaEscribir);
                 break;
             default: break;
-        }
-        return log;
+        }//fin de switch
+        return respuesta;
     }
 
     private byte[] procesaLlamada(byte[] arrayBytes){
         short codop, dataLength;
         String message = "";
         byte[] data,
-                byteCodop 	= new byte[BYTES_IN_SHORT],
-                byteDataTam	= new byte[BYTES_IN_SHORT];
+                byteCodop 	= new byte[2],
+                byteDataTam	= new byte[2];
 
 		/* extract codop */
-        for(int i = OFFSET, j = 0; j < byteCodop.length; j++, i++){
+        for(int i = POSICION_CODOP, j = 0; j < byteCodop.length; j++, i++){
             byteCodop[j] = arrayBytes[i];
         }
 		/* extract data length (short)*/
-        for(int i = OFFSET+BYTES_IN_SHORT, j = 0 ; j < BYTES_IN_SHORT; i++, j++){
+        for(int i = POSICION_CODOP +2, j = 0; j < 2; i++, j++){
             byteDataTam[j] = arrayBytes[i];
         }
         codop 		= ToShort(byteCodop);
         dataLength	= ToShort(byteDataTam);
         data = new byte[dataLength];
 		/* get data */
-        for(int i = OFFSET+(BYTES_IN_SHORT*2), j = 0; j < dataLength; j++, i++){
+        for(int i = POSICION_CODOP +(4), j = 0; j < dataLength; j++, i++){
             data[j] = arrayBytes[i];
         }
-        message = (HacerOperacion(codop, (new String(data)).split(",")));
+        message = (ejecutarComando(codop, (new String(data)).split(",")));
         return message.getBytes();
     }
 
     private byte[] packageData(byte[] data){
         short dataTam = (short) data.length;
         byte[] byteDataTam = toByte(dataTam);
-        byte[] newPackage = new byte[OFFSET+(BYTES_IN_SHORT*2)+dataTam];
+        byte[] newPackage = new byte[POSICION_CODOP +(4)+dataTam];
 
-        for(int i = 0; i < OFFSET; i++){
+        for(int i = 0; i < POSICION_CODOP; i++){
             newPackage[i] = 0;
         }
 		/* insert dataTam (short) */
-        for(int i = OFFSET+BYTES_IN_SHORT, j = 0; j < byteDataTam.length; i++,j++){
+        for(int i = POSICION_CODOP +2, j = 0; j < byteDataTam.length; i++,j++){
             newPackage[i] = byteDataTam[j];
         }
 		/* insert data (data.length bytes) */
-        for(int i = OFFSET+(BYTES_IN_SHORT*2), j = 0; j < data.length; i++, j++){
+        for(int i = POSICION_CODOP +(4), j = 0; j < data.length; i++, j++){
             newPackage[i] = data[j];
         }
         return newPackage;
@@ -217,7 +213,7 @@ public class ProcesoServidor extends Proceso {
     }
 
     protected byte[] toByte(short value){
-        byte[] byteArray = new byte[BYTES_IN_SHORT];
+        byte[] byteArray = new byte[2];
 		/* saved from most to less significant */
         byteArray[0] = (byte) (value >> 8);
         byteArray[1] = (byte) value;

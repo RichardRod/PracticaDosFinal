@@ -48,7 +48,7 @@ public class ProcesoCliente extends Proceso {
         byteData 	= data.getBytes();
         byteDataTam = toByte(dataTam);
         byte [] solCliente = new byte[OFFSET + byteCodop.length + byteDataTam.length +byteData.length];
-		/* FIXME: insert dir1, dir2 (now OFFSET) */
+		/* FIXME: insert dir1, dir2 (now POSICION_CODOP) */
 		/* insert codop */
         for(int i = OFFSET, j = 0; j < byteCodop.length; j++, i++){
             solCliente[i] = byteCodop[j];
