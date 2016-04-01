@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="MicroKernelBasedSystem">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/src/MicroKernelBasedSystem.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/src/MicroKernelBasedSystem.jar!/" />
+    </SOURCES>
+  </library>
+</component>
