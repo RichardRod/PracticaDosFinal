@@ -67,7 +67,7 @@ public class ClienteFrame extends ProcesoFrame{
 				com=codigosOperacion.getSelectedItem();
 				imprimeln("Solicitud a enviar: "+com);
 				imprimeln("Mensaje a enviar: "+campoMensaje.getText());
-				proc.setData((short)codigosOperacion.getSelectedIndex(), campoMensaje.getText());
+				proc.establecerDatos((short)codigosOperacion.getSelectedIndex(), campoMensaje.getText());
 				Nucleo.reanudarProceso(proc);
 			}
 		}

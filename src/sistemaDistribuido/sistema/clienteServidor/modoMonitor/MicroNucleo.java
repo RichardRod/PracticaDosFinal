@@ -6,26 +6,25 @@ import sistemaDistribuido.sistema.clienteServidor.modoUsuario.Proceso;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.Hashtable;
 
 /**
- *
+ * @Nombre: Rodriguez Haro Ricardo
+ * @seccion: D04
+ * @No: Practica 2
+ * Modificado para Practica 2
  */
+
 public final class MicroNucleo extends MicroNucleoBase {
 
     private static MicroNucleo nucleo = new MicroNucleo();
-    private Hashtable<Integer, InfoProceso> tablaEmision;
-    private Hashtable<Integer, byte[]> tablaRecepcion;
-    protected static final int BYTES_IN_SHORT = 2;
+    private Hashtable<Integer, TransmisionProceso> tablaEmision = new Hashtable<>();
+    private Hashtable<Integer, byte[]> tablaRecepcion = new Hashtable<>();
 
     /**
      *
      */
     private MicroNucleo() {
-
-        tablaEmision = new Hashtable<Integer, InfoProceso>();
-        tablaRecepcion = new Hashtable<Integer, byte[]>();
     }
 
     /**
@@ -62,25 +61,18 @@ public final class MicroNucleo extends MicroNucleoBase {
     /**
      *
      */
-    protected void sendVerdadero(int dest,byte[] message){
+    protected void sendVerdadero(int dest, byte[] message) {
 
-        ParMaquinaProceso pmp=dameDestinatarioDesdeInterfaz();
-        if(tablaEmision.containsKey(dest)){
-            System.out.println("Tomando datos desde tablaEmision");
-			/* se toman desde tabla */
-            message = fillAddress(tablaEmision.get(new Integer(dest)).getId(),
-                    message);
-            sendDatagamPacket(tablaEmision.get(new Integer(dest)).getIp(),
-                    message);
-            imprimeln("Enviando mensaje a IP="+tablaEmision.get(new Integer(dest)).getIp()+" ID="+tablaEmision.get(new Integer(dest)));
+        ParMaquinaProceso pmp = dameDestinatarioDesdeInterfaz();
+        if (tablaEmision.containsKey(dest)) {
+            message = empacarDatos(tablaEmision.get(new Integer(dest)).getId(), message);
+            enviarMensaje(tablaEmision.get(new Integer(dest)).getIp(), message);
+            imprimeln("Enviando mensaje a IP=" + tablaEmision.get(new Integer(dest)).getIp() + " ID=" + tablaEmision.get(new Integer(dest)));
             tablaEmision.remove(dest);
-        }
-        else{
-			/* se toman desde la interfaz */
-            System.out.println("Tomando datos desde Interfaz");
-            message = fillAddress(pmp.dameID(), message);
-            sendDatagamPacket(pmp.dameIP(), message);
-            imprimeln("Enviando mensaje a IP="+pmp.dameIP()+" ID="+pmp.dameID());
+        } else {
+            message = empacarDatos(pmp.dameID(), message);
+            enviarMensaje(pmp.dameIP(), message);
+            imprimeln("Enviando mensaje a IP=" + pmp.dameIP() + " ID=" + pmp.dameID());
         }
         //suspenderProceso();   //esta invocacion depende de si se requiere bloquear al hilo de control invocador
 
@@ -89,7 +81,7 @@ public final class MicroNucleo extends MicroNucleoBase {
     /**
      *
      */
-    protected void receiveVerdadero(int addr,byte[] message){
+    protected void receiveVerdadero(int addr, byte[] message) {
         tablaRecepcion.put(new Integer(addr), message);
         suspenderProceso();
     }
@@ -115,144 +107,118 @@ public final class MicroNucleo extends MicroNucleoBase {
     /**
      *
      */
-    public void run(){
-        byte[]  message = new byte[1024],
-                origin  = new byte[4],
-                destiny = new byte[4],
-                data;
-        String ipSource;
-        Proceso destinyProcess;
-        DatagramPacket dp = new DatagramPacket(message, message.length);
-        while(seguirEsperandoDatagramas()){
-            try {
-                dameSocketRecepcion().receive(dp);
-                sleep(1000);
-                System.arraycopy(dp.getData(), 0, origin , 0, 4);
-                System.arraycopy(dp.getData(), 4, destiny, 0, 4);
-                ipSource = dp.getAddress().getHostAddress();
+    public void run() {
+        byte[] mensaje = new byte[1024];
+        byte[] origen = new byte[4];
+        byte[] destino = new byte[4];
+        byte[] datos;
+        String ip;
+        Proceso procesoDestino;
+        DatagramPacket recepcion = new DatagramPacket(mensaje, mensaje.length);
 
-                tablaEmision.put(new Integer(bytesToInt(origin)),
-                        new InfoProceso(bytesToInt(origin), ipSource));
-                destinyProcess = dameProcesoLocal(bytesToInt(destiny));
-                if(destinyProcess == null){
-                    byte[] error = new byte[BYTES_IN_SHORT];
-					/* se manda AU */
-                    data = dp.getData();
-                    error = toByte((short)-1);
-                    for(int i = 10, j = 0 ; j < +BYTES_IN_SHORT; i++, j++){
-                        data[i] = error[j];
+        while (seguirEsperandoDatagramas()) {
+
+            try {
+                dameSocketRecepcion().receive(recepcion);
+                System.arraycopy(recepcion.getData(), 0, origen, 0, 4);
+                System.arraycopy(recepcion.getData(), 4, destino, 0, 4);
+                ip = recepcion.getAddress().getHostAddress();
+
+                tablaEmision.put(new Integer(desempacarEntero(origen)), new TransmisionProceso(desempacarEntero(origen), ip));
+                procesoDestino = dameProcesoLocal(desempacarEntero(destino));
+
+                if (procesoDestino == null) {
+                    byte[] error = new byte[2];
+
+                    datos = recepcion.getData();
+                    error = empacar((short) -1);
+                    for (int i = 10, j = 0; j < +2; i++, j++) {
+                        datos[i] = error[j];
                     }
-                    // descomentar la linea send, crea un bucle infinito enviando mensajes al proceso 0 (no existe)
-                    send(bytesToInt(origin), data);
+
+                    send(desempacarEntero(origen), datos);
+                } else {
+                    if (tablaRecepcion.containsKey(desempacarEntero(destino))) {
+                        datos = tablaRecepcion.get(desempacarEntero(destino));
+                        System.arraycopy(recepcion.getData(), 0, datos, 0, recepcion.getData().length);
+                        tablaRecepcion.remove(desempacarEntero(destino));
+                        reanudarProceso(procesoDestino);
+                    } else {
+                        imprime("No esta en la tabla recepcion");
+
+                    }
                 }
-                else{
-                    if (tablaRecepcion.containsKey(bytesToInt(destiny))){
-                        data = tablaRecepcion.get(bytesToInt(destiny));
-                        System.arraycopy(dp.getData(), 0, data, 0,
-                                dp.getData().length);
-                        tablaRecepcion.remove(bytesToInt(destiny));
-                        reanudarProceso(destinyProcess);
-                    }
-                    else{
-                        System.out.println("ERROR: This should not appear, tablaRecepcion doesn't contain "
-                                +bytesToInt(destiny));
-						/* TODO: Enviar paquete con mensaje TA (Try Again) */
-                    }
-                }
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            } catch (InterruptedException e) {
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private void sendDatagamPacket(String ip, byte[] message){
-        DatagramPacket dp;
+    private void enviarMensaje(String ip, byte[] mensaje) {
+        DatagramPacket packet;
         try {
-            dp = new DatagramPacket(message, message.length,
-                    InetAddress.getByName(ip),damePuertoRecepcion());
-            dameSocketEmision().send(dp);
-        } catch (UnknownHostException e) {
+            packet = new DatagramPacket(mensaje, mensaje.length, InetAddress.getByName(ip), damePuertoRecepcion());
+            dameSocketEmision().send(packet);
+        }//fin de try
+        catch (IOException e) {
             e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+        }//fin de catch
+    }
+
+    private byte[] empacarDatos(int destino, byte[] mensaje) {
+        byte[] mensajeEmpacado = mensaje;
+        byte[] origen = empacar(super.dameIdProceso());
+        byte[] destinoAux = empacar(destino);
+
+        for (int i = 0; i < origen.length; i++) {
+            mensajeEmpacado[i] = origen[i];
         }
-    }
-
-    private byte[] fillAddress(int dest, byte[] message){
-        byte [] filled = message,
-                origin = intToByteArray(super.dameIdProceso()),
-                destiny= intToByteArray(dest);
-        System.out.println("MicroNucleo.java: Llenando cabecera de mensaje: ");
-        System.out.println("   Origen: "+super.dameIdProceso());
-        System.out.println("   Destino: "+dest);
-        for(int i = 0; i < origin.length; i++){
-            filled[i] = origin[i];
+        for (int i = origen.length, j = 0; i < (destinoAux.length + origen.length); i++, j++) {
+            mensajeEmpacado[i] = destinoAux[j];
         }
-        for(int i = origin.length, j = 0; i < (destiny.length + origin.length); i++ , j++){
-            filled[i] = destiny[j];
+        return mensajeEmpacado;
+    }
+
+
+    private int desempacarEntero(byte[] arreglo) {
+        int valor = 0x0;
+        valor = (int) ((arreglo[3] & 0x000000FF) | (arreglo[2] << 8 & 0x0000FF00) | (arreglo[1] << 16 & 0x00FF0000) | (arreglo[0] << 24 & 0xFF000000));
+        return valor;
+    }
+
+    private byte[] empacar(int valor) {
+        byte[] arreglo = new byte[4];
+
+        for (int i = 3; i >= 0; i--) {
+            arreglo[i] = (byte) valor;
+            valor >>= 8;
         }
-        return filled;
+        return arreglo;
     }
 
-    private byte[] intToByteArray(int data){
-        byte[] byteArray = new byte[4];
-		/* saved from most to less significant */
-        for(int i = 3; i >= 0; i--){
-            byteArray[i] = (byte) data;
-            data >>= 8;
-        }
-        return byteArray;
-    }
+    private byte[] empacar(short valor) {
+        byte[] arreglo = new byte[2];
 
-    private int bytesToInt(byte[] array){
-        int bytesValue = 0x0;
-        bytesValue = (int)( (array[3]       & 0x000000FF) |
-                (array[2] << 8  & 0x0000FF00) |
-                (array[1] << 16 & 0x00FF0000) |
-                (array[0] << 24 & 0xFF000000));
-        return bytesValue;
-    }
-
-    protected short ToShort(byte[] array){
-        short bytesValue = 0x0;
-        bytesValue = (short)((array[1]      & 0x00FF) |
-                (array[0] << 8 & 0xFF00));
-        return bytesValue;
-    }
-
-    protected byte[] toByte(short value){
-        byte[] byteArray = new byte[BYTES_IN_SHORT];
-		/* saved from most to less significant */
-        byteArray[0] = (byte) (value >> 8);
-        byteArray[1] = (byte) value;
-        return byteArray;
+        arreglo[0] = (byte) (valor >> 8);
+        arreglo[1] = (byte) valor;
+        return arreglo;
     }
 }
 
-class InfoProceso{
+class TransmisionProceso {
     private int idProceso;
     private String ipProceso;
 
-    public InfoProceso(int id, String ip){
-        setId(id);
-        setIp(ip);
+    public TransmisionProceso(int idProceso, String ipProceso) {
+        this.idProceso = idProceso;
+        this.ipProceso = ipProceso;
     }
 
-    private void setId(int newId){
-        idProceso = newId;
-    }
-
-    private void setIp(String newIp){
-        ipProceso = newIp;
-    }
-
-    public int getId(){
+    public int getId() {
         return idProceso;
     }
 
-    public String getIp(){
+    public String getIp() {
         return ipProceso;
     }
 }

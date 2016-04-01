@@ -13,104 +13,98 @@ import sistemaDistribuido.util.Escribano;
 
 public class ProcesoCliente extends Proceso {
 
-    private short codop;
-    private String data;
-    int OFFSET = 8;
-    int BYTES_IN_SHORT = 2;
+    private short codigoOperacion;
+    private String datos;
 
     public ProcesoCliente(Escribano esc) {
         super(esc);
         start();
     }
 
-
-
     public void run() {
         imprimeln("Inicio de Proceso Cliente");
         Nucleo.suspenderProceso();
         imprimeln("Generando mensaje a ser enviado, llenando los campos necesarios");
-        byte[] solCliente = packageData();
-        byte[] respCliente=new byte[1024]; //1024
+        byte[] solCliente = empacarDatos();
+        byte[] respCliente = new byte[1024];
         String dato;
         imprimeln("Señalamiento al núcleo para envío de mensaje");
-        Nucleo.send(248,solCliente); //esta no se mueve
+        Nucleo.send(248, solCliente);
         imprimeln("Invocando a Receive.");
-        Nucleo.receive(dameID(),respCliente); // esta tampoco
+        Nucleo.receive(dameID(), respCliente);
         imprimeln("Procesando respuesta recibida del servidor");
-        dato=unpackageData(respCliente);
-        imprimeln("Respuesta del servidor: "+dato);
+        dato = desempacarDatos(respCliente);
+        imprimeln("Respuesta del servidor: " + dato);
+        imprime("Fin del proceso");
     }//fin del metodo run
 
-    private byte[] packageData(){
-        short dataTam = (short) data.length();
-        byte [] byteCodop, byteData, byteDataTam;
-        byteCodop 	= toByte(codop);
-        byteData 	= data.getBytes();
-        byteDataTam = toByte(dataTam);
-        byte [] solCliente = new byte[OFFSET + byteCodop.length + byteDataTam.length +byteData.length];
-		/* FIXME: insert dir1, dir2 (now POSICION_CODOP) */
-		/* insert codop */
-        for(int i = OFFSET, j = 0; j < byteCodop.length; j++, i++){
-            solCliente[i] = byteCodop[j];
+    private byte[] empacarDatos() {
+        short longitudDatos = (short) datos.length();
+        byte[] codop, datosByte, longitudBytes;
+        codop = empacar(codigoOperacion);
+        datosByte = datos.getBytes();
+        longitudBytes = empacar(longitudDatos);
+        byte[] solCliente = new byte[8 + codop.length + longitudBytes.length + datosByte.length];
+
+        for (int i = 8, j = 0; j < codop.length; j++, i++) {
+            solCliente[i] = codop[j];
         }
-		/* insert data length */
-        for(int i = OFFSET+byteCodop.length,j = 0; j < byteDataTam.length; j++,i++){
-            solCliente[i] = byteDataTam[j];
+
+        for (int i = 8 + codop.length, j = 0; j < longitudBytes.length; j++, i++) {
+            solCliente[i] = longitudBytes[j];
         }
-		/* insert data*/
-        for(int i = OFFSET+byteCodop.length+byteDataTam.length, j = 0; j < byteData.length; j++, i++){
-            solCliente[i] = byteData[j];
+
+        for (int i = 8 + codop.length + longitudBytes.length, j = 0; j < datosByte.length; j++, i++) {
+            solCliente[i] = datosByte[j];
         }
         return solCliente;
     }
 
-    private String unpackageData(byte[] data){
-        String dataStr = "";
-        short dataTam;
-        byte[] byteDataTam = new byte[BYTES_IN_SHORT],
-                byteData = new byte[data.length - (BYTES_IN_SHORT - OFFSET)];
-		/* extract dataTam (short) */
-        for(int i = OFFSET + BYTES_IN_SHORT, j = 0; j < BYTES_IN_SHORT;  i++, j++){
-            byteDataTam[j] = data[i];
+    private String desempacarDatos(byte[] datos) {
+        String respuesta = "";
+        short longitudDatos;
+        byte[] longitudDatosByte = new byte[2];
+        byte[] datosByte = new byte[datos.length - (2 - 8)];
+
+        for (int i = 10, j = 0; j < 2; i++, j++) {
+            longitudDatosByte[j] = datos[i];
         }
-        dataTam = ToShort(byteDataTam);
-        if(dataTam > 0){
-            for(int i = OFFSET + (BYTES_IN_SHORT*2), j = 0; j < dataTam; i++, j++){
-                byteData[j] = data[i];
+
+        longitudDatos = desempacarCorto(longitudDatosByte);
+
+        if (longitudDatos > 0) {
+            for (int i = 12, j = 0; j < longitudDatos; i++, j++) {
+                datosByte[j] = datos[i];
             }
-            dataStr = new String(byteData);
+            respuesta = new String(datosByte);
+        } else {
+
+            if (longitudDatos == -1) {
+                respuesta = "Error: Direccion Desconocida AU";
+            } else {
+
+                respuesta = "Error";
+            }
         }
-        else{
-			/* errores del servidor */
-            if(dataTam == -1){
-                dataStr = "Error: Adress unknown";
-            }
-            else{
-				/* TODO: Implementar más errores */
-                dataStr = "Error: Desconocido...";
-            }
-        }
-        return dataStr;
+        return respuesta;
     }
 
-    public void setData(short codop, String data){
-        this.codop = codop;
-        this.data  = data;
+    public void establecerDatos(short codigoOperacion, String datos) {
+        this.codigoOperacion = codigoOperacion;
+        this.datos = datos;
     }
 
-    protected byte[] toByte(short value){
-        byte[] byteArray = new byte[BYTES_IN_SHORT];
-		/* saved from most to less significant */
-        byteArray[0] = (byte) (value >> 8);
-        byteArray[1] = (byte) value;
-        return byteArray;
+    protected byte[] empacar(short valor) {
+        byte[] areglo = new byte[2];
+
+        areglo[0] = (byte) (valor >> 8);
+        areglo[1] = (byte) valor;
+        return areglo;
     }
 
-    protected short ToShort(byte[] array){
-        short bytesValue = 0x0;
-        bytesValue = (short)((array[1]      & 0x00FF) |
-                (array[0] << 8 & 0xFF00));
-        return bytesValue;
+    protected short desempacarCorto(byte[] arreglo) {
+        short valor = 0x0;
+        valor = (short) ((arreglo[1] & 0x00FF) | (arreglo[0] << 8 & 0xFF00));
+        return valor;
     }
-
-}
+}//fin de la clase ProcesoCliene
